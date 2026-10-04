@@ -1,13 +1,15 @@
 class Cliente {
-  final int idCliente;
-  String? nomeFazenda;
-  String responsavel;
+  final int? idCliente;
+  String nome;
+  String documento;
   String? telefone;
+  String? email;
 
   Cliente({
-    required this.idCliente,
-    this.nomeFazenda,
-    required this.responsavel,
+    this.idCliente,
+    required this.nome,
+    required this.documento,
     this.telefone,
+    this.email,
   });
 }

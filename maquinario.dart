@@ -1,17 +1,23 @@
 class Maquinario {
-  final int idMaquinario;
-  double horimetro = 0.0;
-  String tipo;
+  final int? idMaquinario;
+  int idFazenda;
+  String descricao;
   String? marca;
-  String modelo;
-  String status;
+  String? modelo;
+  int? anoFabricacao;
+  double horimetroAtual = 0.0;
+  DateTime? dataAquisicao;
+  String status; // 'Ativo', 'Em Manutenção' ou 'Inativo'
 
   Maquinario({
-    required this.idMaquinario,
-    required this.horimetro,
-    required this.tipo,
+    this.idMaquinario,
+    required this.idFazenda,
+    required this.descricao,
     this.marca,
-    required this.modelo,
-    required this.status,
+    this.modelo,
+    this.anoFabricacao,
+    required this.horimetroAtual,
+    this.dataAquisicao,
+    this.status = 'Ativo',
   });
 }

@@ -1,15 +1,15 @@
 class Peca {
-  final int idpeca;
-  int? estoque;
-  double precoUnitario;
-  String? descricao;
-  String categoria;
+  final int? idPeca;
+  String descricao;
+  String tipo;
+  double? vidaUtilHorimetro;
+  String unidadeMedida; // 'UN', 'L', 'KG'
 
   Peca({
-    required this.idpeca,
-    required this.categoria,
-    this.descricao,
-    this.estoque,
-    required this.precoUnitario,
+    this.idPeca,
+    required this.descricao,
+    required this.tipo,
+    this.vidaUtilHorimetro,
+    this.unidadeMedida = "UN",
   });
 }
