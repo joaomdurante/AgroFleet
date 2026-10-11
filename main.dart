@@ -1,31 +1,30 @@
-// Importa o modelo e o serviço
-import 'models/destino_sustentavel.dart';
-import 'services/destino_sustentavel_service.dart';
+import 'models/cliente.dart';
+import 'repositories/cliente_repository_mysql.dart';
+import 'services/cliente_service.dart';
 
-// O 'async' no main permite que a função principal aguarde a resposta das APIs
 void main() async {
-  print('=== TESTANDO VALIDAÇÃO REAL VIA BRASILAPI ===\n');
+  print('=== TESTANDO PERSISTÊNCIA REAL NO MYSQL ===\n');
 
-  // Instancia a classe de serviço para poder chamar seus métodos
-  final service = DestinoSustentavelService();
+  final clienteRepoSql = ClienteRepositoryMysql();
+  final clienteService = ClienteService(clienteRepoSql);
 
-  // Cria um objeto em memória com dados simulados
-  var empresaEmpress = DestinoSustentavel(
-    idDestinoSustentavel: 1,
-    empresaLicenciada: 'Petrobras Distribuidora',
-    cnpj: '33.000.167/0001-01', // CNPJ real da Petrobras
-    licencaAmbiental: 'LAO-2026-9901',
+  final novoCliente = Cliente(
+    nome: 'Fazenda  Teste 2',
+    documento: '12.345.678/0001-11',
+    telefone: '(35) 98888-7878',
+    email: 'contato@teste.com',
   );
 
-  // Bloco try-catch: tenta executar o fluxo feliz.
-  // Se qualquer validação falhar (throw), cai imediatamente no bloco catch.
   try {
-    await service.validarECadastrarDestino(
-      empresaEmpress,
-      DateTime(2027, 12, 31), // Licença válida
-    );
+    print('1. Tentando cadastrar cliente no MySQL...');
+    final clienteSalvo = await clienteService.cadastrarCliente(novoCliente);
+    print('   ✓ Cliente Gravado no Banco Real! ID AutoIncrement: ${clienteSalvo.idCliente}');
+
+    print('\n2. Buscando o cliente recém-criado pelo CNPJ...');
+    final busca = await clienteService.buscarPorCpfCnpj('12.345.678/0001-99');
+    print('   ✓ Encontrado no MySQL: ${busca?.nome} (ID: ${busca?.idCliente})');
+
   } catch (e) {
-    // Imprime a mensagem tratada da exceção (sem quebrar o programa)
-    print(e);
+    print('Erro: $e');
   }
 }
