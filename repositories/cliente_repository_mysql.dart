@@ -1,23 +1,28 @@
 import '../database/mysql_connection.dart';
 import '../models/cliente.dart';
 
+/// Repositório MySQL encarregado das operações de persitência na tabela `cliente`.
 class ClienteRepositoryMysql {
   
-  /// Insere um novo cliente na tabela 'cliente' do MySQL
+  /// Insere um novo cliente na tabela `cliente` do MySQL.
   Future<Cliente> salvar(Cliente cliente) async {
+    // Requisita uma conexão ativa com o MySQL
     final conn = await Database.getConnection();
 
     try {
+      // Remove caracteres não numéricos do CPF/CNPJ antes de persistir
       final docLimpo = cliente.documento.replaceAll(RegExp(r'\D'), '');
 
+      // Executa a instrução SQL de inserção parametrizada para prevenir SQL Injection
       final result = await conn.query(
         'INSERT INTO cliente (Nome, Documento, Telefone, Email) VALUES (?, ?, ?, ?)',
         [cliente.nome, docLimpo, cliente.telefone, cliente.email],
       );
 
-      // Obtém o ID gerado pelo AUTO_INCREMENT do MySQL
+      // Resgata o ID atribuído pela coluna AUTO_INCREMENT
       final idGerado = result.insertId!;
 
+      // Retorna o objeto Cliente completo com a chave primária atribuída
       return Cliente(
         idCliente: idGerado,
         nome: cliente.nome,
@@ -26,27 +31,34 @@ class ClienteRepositoryMysql {
         email: cliente.email,
       );
     } finally {
-      // Fecha a conexão após a operação
+      // Encerra a conexão com a base de dados de forma segura no bloco 'finally'
       await conn.close();
     }
   }
 
-  /// Busca cliente por CPF ou CNPJ no MySQL
+  /// Realiza a pesquisa de um cliente a partir do seu número de CPF ou CNPJ.
   Future<Cliente?> buscarPorCpfCnpj(String cpfCnpj) async {
+    // Abre a conexão com a base de dados
     final conn = await Database.getConnection();
+    // Limpa pontuações do documento para manter o padrão de busca
     final docLimpo = cpfCnpj.replaceAll(RegExp(r'\D'), '');
 
     try {
+      // Executa a consulta SELECT parametrizada pelo documento
       final results = await conn.query(
         'SELECT idCliente, Nome, Documento, Telefone, Email FROM cliente WHERE Documento = ?',
         [docLimpo],
       );
 
+      // Retorna nulo caso o registo não exista na tabela
       if (results.isEmpty) {
-        return null; // Cliente não cadastrado no MySQL
+        return null;
       }
 
+      // Obtém o primeiro registo retornado
       final linha = results.first;
+      
+      // Converte as colunas SQL para uma instância de modelo Cliente
       return Cliente(
         idCliente: linha['idCliente'] as int,
         nome: linha['Nome'] as String,
@@ -55,6 +67,7 @@ class ClienteRepositoryMysql {
         email: linha['Email'] as String?,
       );
     } finally {
+      // Garante o fecho da conexão
       await conn.close();
     }
   }

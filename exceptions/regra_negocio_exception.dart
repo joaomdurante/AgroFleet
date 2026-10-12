@@ -3,5 +3,5 @@ class RegraNegocioException implements Exception {
   RegraNegocioException(this.mensagem);
 
   @override
-  String toString() => 'Erro de Negócio: $mensagem';
+  String toString() => mensagem;
 }
