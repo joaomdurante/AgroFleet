@@ -1,107 +1,107 @@
-import '../database/mysql_connection.dart';
 import '../models/ordem_servico.dart';
+import 'base_repository_mysql.dart';
 
 /// Repositório MySQL encarregado das operações de persistência na tabela `ordemservico`.
-class OrdemServicoRepositoryMysql {
+class OrdemServicoRepositoryMysql extends BaseRepositoryMysql {
 
-  /// Insere um novo registo de Ordem de Serviço na tabela `ordemservico`.
   Future<OrdemServico> salvar(OrdemServico os) async {
-    // Abre a conexão assíncrona com o servidor MySQL
-    final conn = await Database.getConnection();
+    final result = await executarQuery(
+      'INSERT INTO ordemservico (idMaquinario, Tipo, Status, DataAbertura, DataConclusao, HorimetroMomento, PendenciaAmbiental, Observacao) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        os.idMaquinario,
+        os.tipo,
+        os.status,
+        os.dataAbertura.toUtc(),
+        os.dataConclusao?.toUtc(),
+        os.horimetroMomento,
+        os.pendenciaAmbiental ? 1 : 0,
+        os.observacao,
+      ],
+    );
 
-    try {
-      // Executa o comando INSERT parametrizado
-      final result = await conn.query(
-        'INSERT INTO ordemservico (idMaquinario, Tipo, Status, DataAbertura, DataConclusao, HorimetroMomento, PendenciaAmbiental, Observacao) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          os.idMaquinario,               // FK do maquinário
-          os.tipo,                       // Tipo da manutenção
-          os.status,                     // Estado inicial da OS ('Aberta')
-          os.dataAbertura.toUtc(),       // O driver mysql1 exige o envio explicito em formato UTC
-          os.dataConclusao?.toUtc(),     // Data de conclusão em UTC (se definida)
-          os.horimetroMomento,           // Leitura do horímetro no momento
-          os.pendenciaAmbiental ? 1 : 0, // Mapeia o booleano do Dart para 1/0 do MySQL
-          os.observacao,                 // Observações opcionais
-        ],
-      );
+    final idGerado = result.insertId!;
 
-      // Resgata o ID gerado pelo AUTO_INCREMENT do MySQL
-      final idGerado = result.insertId!;
-
-      // Devolve o objeto instanciado com o ID
-      return OrdemServico(
-        idOrdemServico: idGerado,
-        idMaquinario: os.idMaquinario,
-        tipo: os.tipo,
-        status: os.status,
-        dataAbertura: os.dataAbertura,
-        dataConclusao: os.dataConclusao,
-        horimetroMomento: os.horimetroMomento,
-        pendenciaAmbiental: os.pendenciaAmbiental,
-        observacao: os.observacao,
-      );
-    } finally {
-      // Fecha a conexão no bloco finally para garantir a libertação de recursos
-      await conn.close();
-    }
+    return OrdemServico(
+      idOrdemServico: idGerado,
+      idMaquinario: os.idMaquinario,
+      tipo: os.tipo,
+      status: os.status,
+      dataAbertura: os.dataAbertura,
+      dataConclusao: os.dataConclusao,
+      horimetroMomento: os.horimetroMomento,
+      pendenciaAmbiental: os.pendenciaAmbiental,
+      observacao: os.observacao,
+    );
   }
 
-  /// Recupera uma Ordem de Serviço pelo seu identificador primário.
   Future<OrdemServico?> buscarPorId(int id) async {
-    // Requisita conexão com o banco
-    final conn = await Database.getConnection();
+    final results = await executarQuery(
+      'SELECT idOrdemServico, idMaquinario, Tipo, Status, DataAbertura, DataConclusao, HorimetroMomento, PendenciaAmbiental, Observacao FROM ordemservico WHERE idOrdemServico = ?',
+      [id],
+    );
 
-    try {
-      // Executa a consulta SELECT parametrizada
-      final results = await conn.query(
-        'SELECT idOrdemServico, idMaquinario, Tipo, Status, DataAbertura, DataConclusao, HorimetroMomento, PendenciaAmbiental, Observacao FROM ordemservico WHERE idOrdemServico = ?',
-        [id],
-      );
+    if (results.isEmpty) return null;
+    final linha = results.first;
 
-      // Se não houver registo correspondente, retorna nulo
-      if (results.isEmpty) return null;
-
-      // Obtém o registo localizado
-      final linha = results.first;
-
-      // Instancia a OrdemServico convertendo os tipos de dados do MySQL
-      return OrdemServico(
-        idOrdemServico: linha['idOrdemServico'] as int,
-        idMaquinario: linha['idMaquinario'] as int,
-        tipo: linha['Tipo'] as String,
-        status: linha['Status'] as String,
-        dataAbertura: (linha['DataAbertura'] as DateTime).toLocal(), // Converte do fuso UTC do driver para o fuso local do sistema
-        dataConclusao: linha['DataConclusao'] != null ? (linha['DataConclusao'] as DateTime).toLocal() : null, // Converte a data de conclusão
-        horimetroMomento: (linha['HorimetroMomento'] as num).toDouble(), // Cast do horímetro
-        pendenciaAmbiental: (linha['PendenciaAmbiental'] as int) == 1,   // Mapeia inteiro para booleano
-        observacao: linha['Observacao'] as String?,
-      );
-    } finally {
-      // Encerra a conexão
-      await conn.close();
-    }
+    return OrdemServico(
+      idOrdemServico: linha['idOrdemServico'] as int,
+      idMaquinario: linha['idMaquinario'] as int,
+      tipo: linha['Tipo'] as String,
+      status: linha['Status'] as String,
+      dataAbertura: (linha['DataAbertura'] as DateTime).toLocal(),
+      dataConclusao: linha['DataConclusao'] != null ? (linha['DataConclusao'] as DateTime).toLocal() : null,
+      horimetroMomento: (linha['HorimetroMomento'] as num).toDouble(),
+      pendenciaAmbiental: (linha['PendenciaAmbiental'] as int) == 1,
+      observacao: linha['Observacao'] as String?,
+    );
   }
 
-  /// Atualiza o status, data de conclusão e observações de uma OS na base de dados.
   Future<void> atualizar(OrdemServico os) async {
-    // Conecta à base de dados
-    final conn = await Database.getConnection();
+    await executarQuery(
+      'UPDATE ordemservico SET Status = ?, DataConclusao = ?, HorimetroMomento = ?, PendenciaAmbiental = ?, Observacao = ? WHERE idOrdemServico = ?',
+      [
+        os.status,
+        os.dataConclusao?.toUtc(),
+        os.horimetroMomento,
+        os.pendenciaAmbiental ? 1 : 0,
+        os.observacao,
+        os.idOrdemServico,
+      ],
+    );
+  }
 
-    try {
-      // Executa a query de atualização
-      await conn.query(
-        'UPDATE ordemservico SET Status = ?, DataConclusao = ?, HorimetroMomento = ?, Observacao = ? WHERE idOrdemServico = ?',
-        [
-          os.status,
-          os.dataConclusao?.toUtc(), // Converte a data de conclusão para UTC
-          os.horimetroMomento,
-          os.observacao,
-          os.idOrdemServico,
-        ],
-      );
-    } finally {
-      // Fecha a conexão
-      await conn.close();
-    }
+  /// Altera o estado da pendência ambiental de uma Ordem de Serviço.
+  Future<void> atualizarPendenciaAmbiental(int idOrdemServico, bool temPendencia) async {
+    await executarQuery(
+      'UPDATE ordemservico SET PendenciaAmbiental = ? WHERE idOrdemServico = ?',
+      [temPendencia ? 1 : 0, idOrdemServico],
+    );
+  }
+
+  /// Calcula o custo financeiro total da OS com base em mão de obra e peças efetivamente instaladas.
+  Future<Map<String, double>> calcularCustoTotalOS(int idOrdemServico) async {
+    final sqlMaoObra = '''
+      SELECT COALESCE(SUM((TIME_TO_SEC(TIMEDIFF(a.HoraFim, a.HoraInicio)) / 3600.0) * t.ValorHora), 0) AS CustoMaoObra
+      FROM alocacaotecnico a
+      JOIN tecnico t ON a.idTecnico = t.idTecnico
+      WHERE a.idOrdemServico = ?
+    ''';
+    final resMaoObra = await executarQuery(sqlMaoObra, [idOrdemServico]);
+    final custoMaoObra = (resMaoObra.first['CustoMaoObra'] as num).toDouble();
+
+    final sqlPecas = '''
+      SELECT COALESCE(SUM(ir.Quantidade * ir.PrecoUnitario), 0) AS CustoPecas
+      FROM requisicaopeca rp
+      JOIN itemrequisicao ir ON rp.idRequisicaoPeca = ir.idRequisicaoPeca
+      WHERE rp.idOrdemServico = ?
+    ''';
+    final resPecas = await executarQuery(sqlPecas, [idOrdemServico]);
+    final custoPecas = (resPecas.first['CustoPecas'] as num).toDouble();
+
+    return {
+      'maoObra': custoMaoObra,
+      'pecas': custoPecas,
+      'total': custoMaoObra + custoPecas,
+    };
   }
 }

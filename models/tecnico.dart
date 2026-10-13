@@ -4,6 +4,7 @@ class Tecnico {
   String? telefone;
   String? email;
   bool ativo;
+  double? valorHora;
 
   Tecnico({
     this.idTecnico,
@@ -11,5 +12,6 @@ class Tecnico {
     this.telefone,
     this.email,
     this.ativo = true,
+    this.valorHora = 0,
   });
 }

@@ -7,12 +7,9 @@ import '../exceptions/regra_negocio_exception.dart';
 
 /// Classe de serviço responsável por orquestrar a lógica das Ordens de Serviço e o estado das máquinas.
 class OrdemServicoService {
-  // Instância do repositório de OS
   final OrdemServicoRepositoryMysql _osRepository;
-  // Instância do repositório de maquinário
   final MaquinarioRepositoryMysql _maquinarioRepository;
 
-  /// Injeção de dependências via construtor
   OrdemServicoService(this._osRepository, this._maquinarioRepository);
 
   /// Regra de Negócio: Abertura de Ordem de Serviço com bloqueio do equipamento e validação de horímetro
@@ -22,61 +19,69 @@ class OrdemServicoService {
     required double horimetroInformado,
     String? observacao,
   }) async {
-    // Passo 1: Verifica se o maquinário indicado existe na base de dados
-    final maquinario = await _maquinarioRepository.buscarPorId(idMaquinario);
-    if (maquinario == null) {
-      throw RegraNegocioException('Maquinário com ID $idMaquinario não existe no cadastro.');
+    // 1. Normalização e validação prévia do Tipo de OS ('Preventiva' ou 'Corretiva')
+    final tipoLimpo = tipo.trim().toLowerCase();
+    final tipoFormatado = tipoLimpo == 'preventiva'
+        ? 'Preventiva'
+        : (tipoLimpo == 'corretiva' ? 'Corretiva' : null);
+
+    if (tipoFormatado == null) {
+      throw RegraNegocioException(
+        'Tipo de serviço "$tipo" é inválido. Digite apenas "Preventiva" ou "Corretiva".',
+      );
     }
 
-    // Passo 2: Regra de Negócio - Apenas equipamentos 'Ativo' podem entrar em manutenção
+    // 2. Verifica se o maquinário existe na base de dados
+    final maquinario = await _maquinarioRepository.buscarPorId(idMaquinario);
+    if (maquinario == null) {
+      throw RegraNegocioException('Maquinário com ID #$idMaquinario não foi encontrado.');
+    }
+
+    // 3. Regra de Negócio: Apenas equipamentos com status "Ativo" podem entrar em manutenção
     if (maquinario.status != 'Ativo') {
       throw MaquinarioInativoException(maquinario.descricao);
     }
 
-    // Passo 3: Regra de Negócio - Valida a progressão do horímetro (impede regressão das horas rodadas)
+    // 4. Regra de Negócio: Valida a progressão do horímetro
     if (horimetroInformado < maquinario.horimetroAtual) {
       throw HorimetroInvalidoException(horimetroInformado, maquinario.horimetroAtual);
     }
 
-    // Passo 4: Altera o estado da máquina para 'Em manutencao' e atualiza a leitura do horímetro
-    maquinario.status = 'Em manutencao';
-    maquinario.horimetroAtual = horimetroInformado;
-    // Grava as alterações da máquina no MySQL
-    await _maquinarioRepository.atualizar(maquinario);
-
-    // Passo 5: Cria a nova Ordem de Serviço com os dados validados
+    // 5. Cria e salva a nova Ordem de Serviço PRIMEIRO
     final novaOS = OrdemServico(
       idMaquinario: idMaquinario,
-      tipo: tipo,
+      tipo: tipoFormatado,
       status: 'Aberta',
       dataAbertura: DateTime.now(),
       horimetroMomento: horimetroInformado,
       observacao: observacao,
     );
 
-    // Salva a nova OS no MySQL e devolve a entidade completa com ID
-    return await _osRepository.salvar(novaOS);
+    final osSalva = await _osRepository.salvar(novaOS);
+
+    // 6. Atualiza o status do maquinário SOMENTE após a OS ser gravada com sucesso no MySQL
+    maquinario.status = 'Em manutencao';
+    maquinario.horimetroAtual = horimetroInformado;
+    await _maquinarioRepository.atualizar(maquinario);
+
+    return osSalva;
   }
 
-  /// Regra de Negócio: Finalização de Ordem de Serviço e libertação do equipamento
+  /// Regra de Negócio: Finalização de Ordem de Serviço e liberação do equipamento
   Future<void> concluirOrdemServico(int idOrdemServico) async {
-    // Passo 1: Localiza a OS no MySQL
     final os = await _osRepository.buscarPorId(idOrdemServico);
     if (os == null) {
       throw RegraNegocioException('Ordem de Serviço #$idOrdemServico não foi encontrada.');
     }
 
-    // Impede que uma OS concluída seja alterada novamente
     if (os.status == 'Concluida') {
       throw RegraNegocioException('Esta Ordem de Serviço já foi concluída anteriormente.');
     }
 
-    // Passo 2: Atualiza o status e marca a data de conclusão da OS
     os.status = 'Concluida';
     os.dataConclusao = DateTime.now();
     await _osRepository.atualizar(os);
 
-    // Passo 3: Desbloqueia o maquinário associado, retornando o seu status para 'Ativo'
     final maquinario = await _maquinarioRepository.buscarPorId(os.idMaquinario);
     if (maquinario != null) {
       maquinario.status = 'Ativo';
